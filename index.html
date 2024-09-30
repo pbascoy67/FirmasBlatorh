@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Firma de Documentos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Estilos CSS */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #002244; /* Fondo azul oscuro */
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            background-color: #ffffff;
+            margin: 20px auto;
+            padding: 20px;
+            max-width: 600px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 2px solid #DAA520; /* Borde dorado */
+        }
+
+        h2, h3 {
+            text-align: center;
+            color: #000000; /* Texto en negro */
+        }
+
+        input[type="file"], input[type="text"], input[type="date"] {
+            display: block;
+            margin: 10px auto;
+            width: 80%;
+            padding: 8px;
+            font-size: 16px;
+            border: 2px solid #DAA520; /* Borde dorado */
+            border-radius: 5px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #DAA520; /* Borde dorado */
+            touch-action: none; /* Evitar problemas en dispositivos táctiles */
+        }
+
+        button {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            background-color: #DAA520; /* Fondo dorado */
+            color: #002244; /* Texto azul oscuro */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #C5A000; /* Un dorado más oscuro para el hover */
+        }
+    </style>
+    <!-- Librerías necesarias -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h2>Firma de Documentos</h2>
+        
+        <!-- Cargar documento -->
+        <label for="documento">Subir Documento (PDF):</label>
+        <input type="file" id="documento" accept=".pdf" />
+
+        <!-- Canvas para la firma -->
+        <h3>Dibuja tu firma o carga una firma escaneada:</h3>
+        <canvas id="canvasFirma" width="500" height="200"></canvas>
+        <button id="clearCanvas">Limpiar Firma</button>
+
+        <!-- Botón para subir la firma escaneada -->
+        <h3>O carga una firma escaneada:</h3>
+        <input type="file" id="uploadSignature" accept="image/*" />
+
+        <!-- Campo para Aclaración -->
+        <h3>Aclaración:</h3>
+        <input type="text" id="nombreApellido" placeholder="Escribe tu nombre y apellido" />
+
+        <!-- Campo para Empresa -->
+        <h3>Empresa:</h3>
+        <input type="text" id="nombreEmpresa" placeholder="Escribe el nombre de la empresa" />
+
+        <!-- Campo para Puesto/Cargo -->
+        <h3>Puesto/Cargo:</h3>
+        <input type="text" id="nombrePuesto" placeholder="Escribe el puesto o cargo" />
+
+        <!-- Campo para Fecha -->
+        <h3>Fecha:</h3>
+        <input type="text" id="fecha" />
+
+        <!-- Botón para procesar y descargar -->
+        <button id="descargar">Descargar Documento Firmado</button>
+    </div>
+
+    <script>
+        // Inicializar el canvas
+        const canvas = document.getElementById('canvasFirma');
+        const ctx = canvas.getContext('2d');
+
+        // Variables para dibujar
+        let painting = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // Evitar el desplazamiento en dispositivos táctiles
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+        });
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        });
+
+        // Funciones para iniciar y terminar el dibujo
+        function startPosition(e) {
+            painting = true;
+            [lastX, lastY] = getPosition(e);
+        }
+
+        function endPosition() {
+            painting = false;
+            ctx.beginPath();
+        }
+
+        // Función para obtener la posición del cursor o toque
+        function getPosition(e) {
+            let x, y;
+            if (e.touches && e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                x = e.touches[0].clientX - rect.left;
+                y = e.touches[0].clientY - rect.top;
+            } else {
+                x = e.offsetX;
+                y = e.offsetY;
+            }
+            return [x, y];
+        }
+
+        // Función para dibujar
+        function draw(e) {
+            if (!painting) return;
+            e.preventDefault();
+
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+
+            const [x, y] = getPosition(e);
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            [lastX, lastY] = [x, y];
+        }
+
+        // Event listeners para mouse y táctil
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', endPosition);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', startPosition);
+        canvas.addEventListener('touchend', endPosition);
+        canvas.addEventListener('touchmove', draw);
+
+        // Limpiar el canvas
+        document.getElementById('clearCanvas').addEventListener('click', function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Funcionalidad para cargar una firma escaneada
+        document.getElementById('uploadSignature').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpiar el canvas antes de cargar la imagen
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height); // Dibujar la imagen en el canvas ajustada
+                    }
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Obtener la fecha de hoy en formato dd/mm/aaaa
+        function getTodayDate() {
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0'); // Enero es 0
+            const year = today.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // Colocar la fecha actual en el campo de fecha
+        document.getElementById('fecha').value = getTodayDate();
+
+        // Función para obtener las coordenadas del texto en todas las páginas
+        async function getSignatureCoordinates(pdfData) {
+            const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+            const pdf = await loadingTask.promise;
+            const numPages = pdf.numPages;
+
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const viewport = page.getViewport({ scale: 1.0 });
+
+                let porDestinatarioFound = false;
+                let firmaFound = false;
+                let firmaCoordinates = null;
+
+                for (let item of textContent.items) {
+                    const text = item.str.trim().toLowerCase();
+
+                    if (!porDestinatarioFound && text.includes('por destinatario')) {
+                        porDestinatarioFound = true;
+                    } else if (porDestinatarioFound && !firmaFound && text === 'firma') {
+                        const transform = pdfjsLib.Util.transform(
+                            viewport.transform,
+                            item.transform
+                        );
+                        const x = transform[4];
+                        const y = transform[5];
+                        firmaCoordinates = {
+                            x: x,
+                            y: y,
+                            pageNumber: pageNum - 1 
+                        };
+                        firmaFound = true;
+                        break;
+                    }
+                }
+
+                if (firmaFound) {
+                    return firmaCoordinates;
+                }
+            }
+            return null;
+        }
+
+        document.getElementById('descargar').addEventListener('click', async function() {
+            const fileInput = document.getElementById('documento');
+            const nombreApellido = document.getElementById('nombreApellido').value.trim();
+            const nombreEmpresa = document.getElementById('nombreEmpresa').value.trim();
+            const nombrePuesto = document.getElementById('nombrePuesto').value.trim();
+            const fecha = document.getElementById('fecha').value.trim();
+
+            if (fileInput.files.length === 0) {
+                alert('Por favor, sube un documento PDF.');
+                return;
+            }
+
+            if (nombreApellido === '') {
+                alert('Por favor, ingresa tu nombre y apellido en el campo de Aclaración.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(event) {
+                const pdfData = new Uint8Array(event.target.result);
+
+                const coordinates = await getSignatureCoordinates(pdfData);
+
+                if (!coordinates) {
+                    alert("No se encontró el lugar para firmar en el documento.");
+                    return;
+                }
+
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfData);
+                const pages = pdfDoc.getPages();
+                const page = pages[coordinates.pageNumber];
+
+                const signatureImage = canvas.toDataURL('image/png');
+                const pngImageBytes = await fetch(signatureImage).then(res => res.arrayBuffer());
+                const pngImage = await pdfDoc.embedPng(pngImageBytes);
+
+                const { width, height } = page.getSize();
+
+                const cmToPoints = 28.35;
+
+                const desplazamientoX = 9.5 * cmToPoints;
+                const desplazamientoY = 1 * cmToPoints;
+
+                let xFirma = coordinates.x + desplazamientoX;
+                let yFirma = height - coordinates.y - desplazamientoY;
+
+                // Dibujar la firma
+                page.drawImage(pngImage, {
+                    x: xFirma,
+                    y: yFirma,
+                    width: 150,
+                    height: 50,
+                });
+
+                // Dibujar el nombre y apellido 0.5 cm más abajo de la firma
+                const fontSize = 9;
+                const yAclaracion = yFirma - (0.5 * cmToPoints);
+                const xAclaracion = xFirma + (0.5 * cmToPoints);
+
+                const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+                page.drawText(nombreApellido, {
+                    x: xAclaracion,
+                    y: yAclaracion,
+                    size: fontSize,
+                    font: font,
+                    color: PDFLib.rgb(0, 0, 0),
+                });
+
+                // Dibujar el nombre de la empresa 0.95 cm más abajo del nombre y apellido
+                const yEmpresa = yAclaracion - (0.95 * cmToPoints);
+                page.drawText(nombreEmpresa, {
+                    x: xAclaracion,
+                    y: yEmpresa,
+                    size: fontSize,
+                    font: font,
+                    color: PDFLib.rgb(0, 0, 0),
+                });
+
+                // Dibujar el puesto/cargo 0.95 cm más abajo del nombre de la empresa
+                const yPuesto = yEmpresa - (0.95 * cmToPoints);
+                page.drawText(nombrePuesto, {
+                    x: xAclaracion,
+                    y: yPuesto,
+                    size: fontSize,
+                    font: font,
+                    color: PDFLib.rgb(0, 0, 0),
+                });
+
+                // Dibujar la fecha 0.7 cm más abajo del puesto/cargo
+                const yFecha = yPuesto - (0.7 * cmToPoints);
+                page.drawText(fecha, {
+                    x: xAclaracion,
+                    y: yFecha,
+                    size: fontSize,
+                    font: font,
+                    color: PDFLib.rgb(0, 0, 0),
+                });
+
+                const pdfBytes = await pdfDoc.save();
+
+                // Obtener el nombre del archivo original y concatenar el nombre y apellido sin espacios
+                const originalFileName = file.name.replace('.pdf', '');
+                const finalFileName = `${originalFileName}_${nombreApellido.replace(/\s+/g, '')}.pdf`;
+
+                // Descargar el PDF con el nombre concatenado
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = finalFileName; // Nombre del archivo
+                link.click();
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html>
